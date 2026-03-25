@@ -45,6 +45,7 @@ interface Model3D {
   url: string;
   format: string;
   previewUrl?: string;
+  isDemo?: boolean;
 }
 
 export default function Home() {
@@ -56,6 +57,7 @@ export default function Home() {
   const [model3D, setModel3D] = useState<Model3D | null>(null);
   const [progress, setProgress] = useState(0);
   const [statusText, setStatusText] = useState('');
+  const [isDemoMode, setIsDemoMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 处理图片上传
@@ -210,17 +212,25 @@ export default function Home() {
                 if (data.type === 'progress') {
                   setProgress(data.progress);
                   setStatusText(data.message);
+                  // 检测演示模式
+                  if (data.message?.includes('演示')) {
+                    setIsDemoMode(true);
+                  }
                 } else if (data.type === 'model') {
                   setModel3D({
                     url: data.url,
                     format: data.format,
                     previewUrl: data.previewUrl,
+                    isDemo: isDemoMode,
                   });
                 } else if (data.type === 'complete') {
                   setProgress(100);
                   setStatusText('3D模型生成完成！');
                   setStep('complete');
                 } else if (data.type === 'error') {
+                  if (data.useDemo) {
+                    setIsDemoMode(true);
+                  }
                   throw new Error(data.message);
                 }
               } catch (e) {
@@ -268,6 +278,7 @@ export default function Home() {
     setReferenceImageFile(null);
     setGeneratedImages([]);
     setModel3D(null);
+    setIsDemoMode(false);
     setProgress(0);
     setStatusText('');
   };
@@ -474,6 +485,11 @@ export default function Home() {
                   <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
                   <h3 className="text-xl font-semibold mb-2">3D模型生成完成！</h3>
                   <p className="text-muted-foreground">可以预览和下载您的3D模型</p>
+                  {isDemoMode && (
+                    <Badge variant="secondary" className="mt-2">
+                      演示模式 - 当前环境无法连接Tripo AI，显示的是示例模型
+                    </Badge>
+                  )}
                 </div>
 
                 {/* 3D Model Preview */}
