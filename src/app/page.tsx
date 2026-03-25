@@ -326,8 +326,11 @@ export default function Home() {
 
                 <div>
                   <label className="text-sm font-medium mb-2 block">
-                    上传参考图（可选）
+                    上传参考图（可选，仅作风格灵感参考）
                   </label>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    参考图仅作为风格和构图的轻微参考，不会照搬复制，AI会根据你的文字描述进行创新设计
+                  </p>
                   <div 
                     onClick={() => fileInputRef.current?.click()}
                     className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary transition-colors"
@@ -339,6 +342,9 @@ export default function Home() {
                           alt="参考图" 
                           className="w-full h-full object-cover rounded-lg"
                         />
+                        <Badge className="absolute top-2 left-2" variant="secondary">
+                          仅风格参考
+                        </Badge>
                         <Button
                           variant="destructive"
                           size="sm"
@@ -355,8 +361,8 @@ export default function Home() {
                     ) : (
                       <div className="text-muted-foreground">
                         <Upload className="w-12 h-12 mx-auto mb-2" />
-                        <p>点击上传参考图片</p>
-                        <p className="text-xs mt-1">支持 JPG、PNG 格式</p>
+                        <p>点击上传风格参考图片</p>
+                        <p className="text-xs mt-1">AI将以文字描述为主，参考图仅提供风格灵感</p>
                       </div>
                     )}
                   </div>

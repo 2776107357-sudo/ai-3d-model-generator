@@ -3,24 +3,29 @@ import { ImageGenerationClient, Config, HeaderUtils } from 'coze-coding-dev-sdk'
 
 export const runtime = 'nodejs';
 
-// 生成不同视角的提示词
-function generateViewPrompts(basePrompt: string): { type: string; prompt: string }[] {
+// 生成不同视角的提示词（参考图仅作为风格参考，不照抄）
+function generateViewPrompts(basePrompt: string, hasReferenceImage: boolean): { type: string; prompt: string }[] {
+  // 如果有参考图，强调创新而非照抄
+  const referenceGuidance = hasReferenceImage 
+    ? ', take the reference image as a gentle style inspiration only, be creative and innovative, do not copy or replicate the reference, create something new and original based on the text description'
+    : '';
+
   return [
     {
       type: 'main',
-      prompt: `Product photography of ${basePrompt}, professional studio lighting, clean white background, high quality, detailed, 4k, commercial photography style`,
+      prompt: `Product photography of ${basePrompt}${referenceGuidance}, professional studio lighting, clean white background, high quality, detailed, 4k, commercial photography style, creative composition`,
     },
     {
       type: 'front',
-      prompt: `Front view of ${basePrompt}, orthographic projection, clean white background, product photography, studio lighting, detailed, 4k`,
+      prompt: `Front view of ${basePrompt}${referenceGuidance}, orthographic projection, clean white background, product photography, studio lighting, detailed, 4k`,
     },
     {
       type: 'side',
-      prompt: `Side view of ${basePrompt}, orthographic projection, clean white background, product photography, studio lighting, detailed, 4k`,
+      prompt: `Side view of ${basePrompt}${referenceGuidance}, orthographic projection, clean white background, product photography, studio lighting, detailed, 4k`,
     },
     {
       type: 'back',
-      prompt: `Back view of ${basePrompt}, orthographic projection, clean white background, product photography, studio lighting, detailed, 4k`,
+      prompt: `Back view of ${basePrompt}${referenceGuidance}, orthographic projection, clean white background, product photography, studio lighting, detailed, 4k`,
     },
   ];
 }
@@ -68,15 +73,16 @@ export async function POST(request: NextRequest) {
         const config = new Config();
         const client = new ImageGenerationClient(config, customHeaders);
 
-        // 生成四个视角的提示词
-        const viewPrompts = generateViewPrompts(prompt);
+        // 判断是否有参考图
+        const hasReference = !!referenceImage;
         
-        // 如果有参考图，先上传获取URL（这里简化处理，实际需要上传到存储）
+        // 生成四个视角的提示词
+        const viewPrompts = generateViewPrompts(prompt, hasReference);
+        
+        // 如果有参考图，转换为base64
         let referenceImageUrl: string | undefined;
         if (referenceImage) {
-          sendProgress(5, '处理参考图片...');
-          // 将File转换为base64，这里简化处理
-          // 实际项目中应该上传到对象存储获取URL
+          sendProgress(5, '处理参考图片（仅作为风格参考）...');
           const bytes = await referenceImage.arrayBuffer();
           const buffer = Buffer.from(bytes);
           const base64 = buffer.toString('base64');
@@ -98,12 +104,14 @@ export async function POST(request: NextRequest) {
           sendProgress(progress, `正在生成${viewNames[view.type]}...`);
 
           try {
-            // 生成图片
+            // 生成图片，参考图权重较低（仅作为灵感参考）
             const response = await client.generate({
               prompt: view.prompt,
               image: referenceImageUrl,
               size: '2K',
               watermark: false,
+              // 使用标准模式，让AI更多依赖文字描述而非参考图
+              optimizePromptMode: 'standard',
             });
 
             const helper = client.getResponseHelper(response);
@@ -112,14 +120,12 @@ export async function POST(request: NextRequest) {
               sendImage(helper.imageUrls[0], view.type);
             } else {
               console.error(`Failed to generate ${view.type}:`, helper.errorMessages);
-              // 如果生成失败，继续尝试下一个
             }
           } catch (error) {
             console.error(`Error generating ${view.type}:`, error);
-            // 继续生成其他视角
           }
 
-          // 添加短暂延迟，避免请求过快
+          // 添加短暂延迟
           if (i < viewPrompts.length - 1) {
             await new Promise(resolve => setTimeout(resolve, 500));
           }
