@@ -5,8 +5,8 @@ export const runtime = 'nodejs';
 
 // Tripo 配置
 const TRIPO_CONFIG = {
-  proxyUrl: process.env.TRIPO_PROXY_URL || 'https://tripo-proxy.2776107357.workers.dev',
-  hasApiKey: !!process.env.TRIPO_API_KEY || true,
+  proxyUrl: process.env.TRIPO_PROXY_URL || 'http://tripo-proxy.2776107357.workers.dev',
+  hasApiKey: !!(process.env.TRIPO_API_KEY || true),
 };
 
 export async function GET(request: NextRequest) {

@@ -5,12 +5,10 @@ export const runtime = 'nodejs';
 
 // Tripo AI 配置
 const TRIPO_CONFIG = {
-  clientId: 'tcli_d63c726072c241789029971c4fa47f0e',
-  apiKey: 'tsk_4e-wfyELxLmo_ezM-qccv11sB13SYgJ7oHzNizwHz09',
+  clientId: process.env.TRIPO_CLIENT_ID || 'tcli_d63c726072c241789029971c4fa47f0e',
+  apiKey: process.env.TRIPO_API_KEY || 'tsk_4e-wfyELxLmo_ezM-qccv11sB13SYgJ7oHzNizwHz09',
   // 用户提供的 Cloudflare Worker 代理地址
-  proxyUrl: 'https://tripo-proxy.2776107357.workers.dev',
-  // 备选代理地址（如果用户部署了自己的Worker）
-  backupProxyUrl: process.env.TRIPO_PROXY_URL || 'https://tripo-proxy.2776107357.workers.dev',
+  proxyUrl: process.env.TRIPO_PROXY_URL || 'http://tripo-proxy.2776107357.workers.dev',
 };
 
 // 演示用的示例模型
@@ -95,31 +93,23 @@ export async function POST(request: NextRequest) {
 
         sendProgress(5, '正在检查服务连接...');
 
-        // 尝试主代理
-        let activeProxy = TRIPO_CONFIG.proxyUrl;
-        let proxyAvailable = await checkProxyHealth(activeProxy);
-        
-        // 如果主代理不可用，尝试备选代理
-        if (!proxyAvailable && TRIPO_CONFIG.backupProxyUrl !== TRIPO_CONFIG.proxyUrl) {
-          sendProgress(8, '主代理不可用，尝试备选代理...');
-          activeProxy = TRIPO_CONFIG.backupProxyUrl;
-          proxyAvailable = await checkProxyHealth(activeProxy);
-        }
+        // 检查代理是否可用
+        const proxyAvailable = await checkProxyHealth(TRIPO_CONFIG.proxyUrl);
 
         if (!proxyAvailable) {
-          console.log('[3D Gen] All proxies unavailable, using demo mode');
-          await useDemoMode('代理服务暂时不可用');
+          console.log('[3D Gen] Proxy unavailable, using demo mode');
+          await useDemoMode('网络服务暂时不可用');
           return;
         }
 
-        sendProgress(10, `已连接到代理服务: ${activeProxy.replace('https://', '')}`);
+        sendProgress(10, `已连接到代理服务`);
 
         // 创建Tripo任务
         try {
           sendProgress(15, '正在创建3D生成任务...');
           
           const createResponse = await axios.post(
-            `${activeProxy}/api/v2/task`,
+            `${TRIPO_CONFIG.proxyUrl}/api/v2/task`,
             {
               type: 'image_to_model',
               file: { url: imageUrl },
@@ -153,7 +143,7 @@ export async function POST(request: NextRequest) {
             
             try {
               const statusResponse = await axios.get(
-                `${activeProxy}/api/v2/task/${taskId}`,
+                `${TRIPO_CONFIG.proxyUrl}/api/v2/task/${taskId}`,
                 {
                   headers: {
                     'Authorization': `Bearer ${TRIPO_CONFIG.apiKey}`,
