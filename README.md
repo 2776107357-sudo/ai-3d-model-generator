@@ -1,363 +1,146 @@
-# projects
+# 🎨 AI 3D模型生成器
 
-这是一个基于 [Next.js 16](https://nextjs.org) + [shadcn/ui](https://ui.shadcn.com) 的全栈应用项目，由扣子编程 CLI 创建。
+一键将文字描述转换为高质量3D数字模型
 
-## 快速开始
+## ✨ 功能特性
 
-### 启动开发服务器
+- 🖼️ **AI图片生成** - 根据描述自动生成主视图和三视图
+- 🎯 **参考图支持** - 可上传参考图作为风格灵感（不照抄）
+- 🧊 **3D模型生成** - 使用Tripo AI生成真实3D模型
+- 👁️ **交互式预览** - 实时3D预览，支持旋转缩放
+- 📦 **一键下载** - 导出GLB格式3D模型文件
 
-```bash
-coze dev
-```
+## 🚀 快速部署
 
-启动后，在浏览器中打开 [http://localhost:5000](http://localhost:5000) 查看应用。
+### 方式1：部署到 Vercel（推荐）
 
-开发服务器支持热更新，修改代码后页面会自动刷新。
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/你的用户名/ai-3d-model-generator)
 
-### 构建生产版本
+**步骤**：
+1. 点击上方按钮
+2. 登录 GitHub 授权
+3. 在 Vercel 中设置环境变量：
+   ```
+   TRIPO_PROXY_URL=http://tripo-proxy.2776107357.workers.dev
+   TRIPO_API_KEY=tsk_4e-wfyELxLmo_ezM-qccv11sB13SYgJ7oHzNizwHz09
+   ```
+4. 点击 Deploy
 
-```bash
-coze build
-```
+📖 [详细部署教程](./VERCEL_DEPLOY.md)
 
-### 启动生产服务器
-
-```bash
-coze start
-```
-
-## 项目结构
-
-```
-src/
-├── app/                      # Next.js App Router 目录
-│   ├── layout.tsx           # 根布局组件
-│   ├── page.tsx             # 首页
-│   ├── globals.css          # 全局样式（包含 shadcn 主题变量）
-│   └── [route]/             # 其他路由页面
-├── components/              # React 组件目录
-│   └── ui/                  # shadcn/ui 基础组件（优先使用）
-│       ├── button.tsx
-│       ├── card.tsx
-│       └── ...
-├── lib/                     # 工具函数库
-│   └── utils.ts            # cn() 等工具函数
-└── hooks/                   # 自定义 React Hooks（可选）
-
-server/
-├── index.ts                 # 自定义服务器入口
-├── tsconfig.json           # Server TypeScript 配置
-└── dist/                    # 编译输出目录（自动生成）
-```
-
-## 核心开发规范
-
-### 1. 组件开发
-
-**优先使用 shadcn/ui 基础组件**
-
-本项目已预装完整的 shadcn/ui 组件库，位于 `src/components/ui/` 目录。开发时应优先使用这些组件作为基础：
-
-```tsx
-// ✅ 推荐：使用 shadcn 基础组件
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-
-export default function MyComponent() {
-  return (
-    <Card>
-      <CardHeader>标题</CardHeader>
-      <CardContent>
-        <Input placeholder="输入内容" />
-        <Button>提交</Button>
-      </CardContent>
-    </Card>
-  );
-}
-```
-
-**可用的 shadcn 组件清单**
-
-- 表单：`button`, `input`, `textarea`, `select`, `checkbox`, `radio-group`, `switch`, `slider`
-- 布局：`card`, `separator`, `tabs`, `accordion`, `collapsible`, `scroll-area`
-- 反馈：`alert`, `alert-dialog`, `dialog`, `toast`, `sonner`, `progress`
-- 导航：`dropdown-menu`, `menubar`, `navigation-menu`, `context-menu`
-- 数据展示：`table`, `avatar`, `badge`, `hover-card`, `tooltip`, `popover`
-- 其他：`calendar`, `command`, `carousel`, `resizable`, `sidebar`
-
-详见 `src/components/ui/` 目录下的具体组件实现。
-
-### 2. 路由开发
-
-Next.js 使用文件系统路由，在 `src/app/` 目录下创建文件夹即可添加路由：
+### 方式2：本地开发
 
 ```bash
-# 创建新路由 /about
-src/app/about/page.tsx
+# 克隆项目
+git clone https://github.com/你的用户名/ai-3d-model-generator.git
+cd ai-3d-model-generator
 
-# 创建动态路由 /posts/[id]
-src/app/posts/[id]/page.tsx
-
-# 创建路由组（不影响 URL）
-src/app/(marketing)/about/page.tsx
-
-# 创建 API 路由
-src/app/api/users/route.ts
-```
-
-**页面组件示例**
-
-```tsx
-// src/app/about/page.tsx
-import { Button } from '@/components/ui/button';
-
-export const metadata = {
-  title: '关于我们',
-  description: '关于页面描述',
-};
-
-export default function AboutPage() {
-  return (
-    <div>
-      <h1>关于我们</h1>
-      <Button>了解更多</Button>
-    </div>
-  );
-}
-```
-
-**动态路由示例**
-
-```tsx
-// src/app/posts/[id]/page.tsx
-export default async function PostPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
-
-  return <div>文章 ID: {id}</div>;
-}
-```
-
-**API 路由示例**
-
-```tsx
-// src/app/api/users/route.ts
-import { NextResponse } from 'next/server';
-
-export async function GET() {
-  return NextResponse.json({ users: [] });
-}
-
-export async function POST(request: Request) {
-  const body = await request.json();
-  return NextResponse.json({ success: true });
-}
-```
-
-### 3. 依赖管理
-
-**必须使用 pnpm 管理依赖**
-
-```bash
-# ✅ 安装依赖
+# 安装依赖
 pnpm install
 
-# ✅ 添加新依赖
-pnpm add package-name
+# 创建环境变量文件
+cp .env.example .env.local
 
-# ✅ 添加开发依赖
-pnpm add -D package-name
-
-# ❌ 禁止使用 npm 或 yarn
-# npm install  # 错误！
-# yarn add     # 错误！
+# 启动开发服务器
+pnpm dev
 ```
 
-项目已配置 `preinstall` 脚本，使用其他包管理器会报错。
+## 📖 使用指南
 
-### 4. 样式开发
+### 基本流程
 
-**使用 Tailwind CSS v4**
+1. **输入描述** - 描述你想生成的物品
+   ```
+   例如：一个复古风格的陶瓷花瓶，带有精美的花纹装饰
+   ```
 
-本项目使用 Tailwind CSS v4 进行样式开发，并已配置 shadcn 主题变量。
+2. **上传参考图（可选）** - 提供风格参考
+   - 仅作为灵感参考，不会照抄
+   - AI会根据文字描述进行创新
 
-```tsx
-// 使用 Tailwind 类名
-<div className="flex items-center gap-4 p-4 rounded-lg bg-background">
-  <Button className="bg-primary text-primary-foreground">
-    主要按钮
-  </Button>
-</div>
+3. **生成图片** - 等待生成主视图和三视图
+   - 主视图：产品展示图
+   - 正视图/侧视图/后视图：三视图
 
-// 使用 cn() 工具函数合并类名
-import { cn } from '@/lib/utils';
+4. **确认效果** - 查看生成结果
+   - 满意：继续生成3D模型
+   - 不满意：重新生成
 
-<div className={cn(
-  "base-class",
-  condition && "conditional-class",
-  className
-)}>
-  内容
-</div>
+5. **生成3D模型** - 将图片转换为3D模型
+   - 自动使用Tripo AI生成
+   - 实时显示进度
+
+6. **预览下载** - 交互式预览和下载
+   - 3D预览：支持旋转、缩放
+   - 下载：GLB格式模型文件
+
+### 网络说明
+
+**演示模式**：
+- 当前沙箱环境无法访问外网
+- 自动使用示例模型展示流程
+- 部署到Vercel后可使用真实3D生成
+
+**真实模式**：
+- 部署到支持外网的环境（Vercel/Netlify等）
+- 配置Worker代理地址
+- 使用真实的Tripo AI API
+
+## 🏗️ 项目结构
+
+```
+├── src/
+│   ├── app/
+│   │   ├── page.tsx                 # 主页面
+│   │   ├── api/
+│   │   │   ├── generate-images/     # 图片生成API
+│   │   │   ├── generate-3d/         # 3D模型生成API
+│   │   │   └── health/              # 健康检查API
+│   │   └── ...
+│   └── components/
+│       ├── ModelViewer.tsx          # 3D预览组件
+│       └── ui/                      # shadcn/ui组件
+├── cloudflare-worker/
+│   └── tripo-proxy.js               # Worker代理代码
+├── scripts/
+│   └── deploy-to-vercel.sh          # 部署脚本
+├── GUIDE.md                         # 完整使用指南
+├── VERCEL_DEPLOY.md                 # Vercel部署教程
+└── NETWORK_SOLUTION.md              # 网络方案说明
 ```
 
-**主题变量**
+## 🔧 技术栈
 
-主题变量定义在 `src/app/globals.css` 中，支持亮色/暗色模式：
+- **前端框架**: Next.js 16 + React 19
+- **UI组件**: shadcn/ui + Tailwind CSS
+- **3D渲染**: Three.js + React Three Fiber
+- **AI图片生成**: 豆包/即梦（通过coze-coding-dev-sdk）
+- **3D模型生成**: Tripo AI
+- **网络代理**: Cloudflare Workers
 
-- `--background`, `--foreground`
-- `--primary`, `--primary-foreground`
-- `--secondary`, `--secondary-foreground`
-- `--muted`, `--muted-foreground`
-- `--accent`, `--accent-foreground`
-- `--destructive`, `--destructive-foreground`
-- `--border`, `--input`, `--ring`
+## 📚 文档
 
-### 5. 表单开发
+- [完整使用指南](./GUIDE.md)
+- [Vercel部署教程](./VERCEL_DEPLOY.md)
+- [网络方案说明](./NETWORK_SOLUTION.md)
 
-推荐使用 `react-hook-form` + `zod` 进行表单开发：
+## ⚙️ 环境变量
 
-```tsx
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-
-const formSchema = z.object({
-  username: z.string().min(2, '用户名至少 2 个字符'),
-  email: z.string().email('请输入有效的邮箱'),
-});
-
-export default function MyForm() {
-  const form = useForm({
-    resolver: zodResolver(formSchema),
-    defaultValues: { username: '', email: '' },
-  });
-
-  const onSubmit = (data: z.infer<typeof formSchema>) => {
-    console.log(data);
-  };
-
-  return (
-    <form onSubmit={form.handleSubmit(onSubmit)}>
-      <Input {...form.register('username')} />
-      <Input {...form.register('email')} />
-      <Button type="submit">提交</Button>
-    </form>
-  );
-}
+```bash
+# Tripo AI 配置
+TRIPO_PROXY_URL=http://tripo-proxy.2776107357.workers.dev
+TRIPO_API_KEY=tsk_4e-wfyELxLmo_ezM-qccv11sB13SYgJ7oHzNizwHz09
+TRIPO_CLIENT_ID=tcli_d63c726072c241789029971c4fa47f0e
 ```
 
-### 6. 数据获取
+## 🤝 贡献
 
-**服务端组件（推荐）**
+欢迎提交 Issue 和 Pull Request！
 
-```tsx
-// src/app/posts/page.tsx
-async function getPosts() {
-  const res = await fetch('https://api.example.com/posts', {
-    cache: 'no-store', // 或 'force-cache'
-  });
-  return res.json();
-}
+## 📄 License
 
-export default async function PostsPage() {
-  const posts = await getPosts();
+MIT License
 
-  return (
-    <div>
-      {posts.map(post => (
-        <div key={post.id}>{post.title}</div>
-      ))}
-    </div>
-  );
-}
-```
+---
 
-**客户端组件**
-
-```tsx
-'use client';
-
-import { useEffect, useState } from 'react';
-
-export default function ClientComponent() {
-  const [data, setData] = useState(null);
-
-  useEffect(() => {
-    fetch('/api/data')
-      .then(res => res.json())
-      .then(setData);
-  }, []);
-
-  return <div>{JSON.stringify(data)}</div>;
-}
-```
-
-## 常见开发场景
-
-### 添加新页面
-
-1. 在 `src/app/` 下创建文件夹和 `page.tsx`
-2. 使用 shadcn 组件构建 UI
-3. 根据需要添加 `layout.tsx` 和 `loading.tsx`
-
-### 创建业务组件
-
-1. 在 `src/components/` 下创建组件文件（非 UI 组件）
-2. 优先组合使用 `src/components/ui/` 中的基础组件
-3. 使用 TypeScript 定义 Props 类型
-
-### 添加全局状态
-
-推荐使用 React Context 或 Zustand：
-
-```tsx
-// src/lib/store.ts
-import { create } from 'zustand';
-
-interface Store {
-  count: number;
-  increment: () => void;
-}
-
-export const useStore = create<Store>((set) => ({
-  count: 0,
-  increment: () => set((state) => ({ count: state.count + 1 })),
-}));
-```
-
-### 集成数据库
-
-推荐使用 Prisma 或 Drizzle ORM，在 `src/lib/db.ts` 中配置。
-
-## 技术栈
-
-- **框架**: Next.js 16.1.1 (App Router)
-- **UI 组件**: shadcn/ui (基于 Radix UI)
-- **样式**: Tailwind CSS v4
-- **表单**: React Hook Form + Zod
-- **图标**: Lucide React
-- **字体**: Geist Sans & Geist Mono
-- **包管理器**: pnpm 9+
-- **TypeScript**: 5.x
-
-## 参考文档
-
-- [Next.js 官方文档](https://nextjs.org/docs)
-- [shadcn/ui 组件文档](https://ui.shadcn.com)
-- [Tailwind CSS 文档](https://tailwindcss.com/docs)
-- [React Hook Form](https://react-hook-form.com)
-
-## 重要提示
-
-1. **必须使用 pnpm** 作为包管理器
-2. **优先使用 shadcn/ui 组件** 而不是从零开发基础组件
-3. **遵循 Next.js App Router 规范**，正确区分服务端/客户端组件
-4. **使用 TypeScript** 进行类型安全开发
-5. **使用 `@/` 路径别名** 导入模块（已配置）
+**注意**：本项目仅供学习和研究使用。生成的3D模型质量取决于AI服务，请合理使用。
