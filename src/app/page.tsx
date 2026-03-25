@@ -58,7 +58,22 @@ export default function Home() {
   const [progress, setProgress] = useState(0);
   const [statusText, setStatusText] = useState('');
   const [isDemoMode, setIsDemoMode] = useState(false);
+  const [networkStatus, setNetworkStatus] = useState<'checking' | 'available' | 'unavailable' | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 检查网络状态
+  const checkNetworkStatus = async () => {
+    setNetworkStatus('checking');
+    try {
+      const response = await fetch('/api/health');
+      const data = await response.json();
+      setNetworkStatus(data.summary?.proxyAvailable ? 'available' : 'unavailable');
+      return data.summary?.proxyAvailable;
+    } catch (error) {
+      setNetworkStatus('unavailable');
+      return false;
+    }
+  };
 
   // 处理图片上传
   const handleImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -137,6 +152,8 @@ export default function Home() {
                   setProgress(100);
                   setStatusText('图片生成完成！');
                   setStep('review-images');
+                  // 检查网络状态
+                  checkNetworkStatus();
                 } else if (data.type === 'error') {
                   throw new Error(data.message);
                 }
@@ -279,6 +296,7 @@ export default function Home() {
     setGeneratedImages([]);
     setModel3D(null);
     setIsDemoMode(false);
+    setNetworkStatus(null);
     setProgress(0);
     setStatusText('');
   };
@@ -444,6 +462,28 @@ export default function Home() {
                       </Badge>
                     </div>
                   ))}
+                </div>
+
+                {/* 网络状态提示 */}
+                <div className="flex items-center justify-center gap-2 text-sm">
+                  {networkStatus === 'checking' && (
+                    <Badge variant="secondary">
+                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                      正在检查网络连接...
+                    </Badge>
+                  )}
+                  {networkStatus === 'unavailable' && (
+                    <div className="text-amber-600 dark:text-amber-500 flex items-center gap-2">
+                      <Camera className="w-4 h-4" />
+                      <span>网络服务暂不可用，将使用演示模式展示示例模型</span>
+                    </div>
+                  )}
+                  {networkStatus === 'available' && (
+                    <div className="text-green-600 dark:text-green-500 flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4" />
+                      <span>网络服务正常，可生成真实3D模型</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex gap-4 justify-center">
