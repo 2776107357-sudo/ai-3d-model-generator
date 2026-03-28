@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import axios from 'axios';
 
 export const runtime = 'nodejs';
 
@@ -21,43 +20,55 @@ export async function GET(request: NextRequest) {
 
   // 测试1: 代理健康检查
   try {
-    const healthResponse = await axios.get(`${TRIPO_CONFIG.proxyUrl}/health`, {
-      timeout: 5000,
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    
+    const healthResponse = await fetch(`${TRIPO_CONFIG.proxyUrl}/health`, {
+      method: 'GET',
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
+    
+    const healthData = await healthResponse.json();
     results.tests.proxyHealth = {
-      success: true,
+      success: healthResponse.ok,
       status: healthResponse.status,
-      data: healthResponse.data,
+      data: healthData,
     };
   } catch (error: any) {
     results.tests.proxyHealth = {
       success: false,
-      error: error.message,
-      code: error.code,
+      error: error.message || 'Unknown error',
+      name: error.name,
     };
   }
 
   // 测试2: Tripo API连接（如果健康检查通过）
   if (results.tests.proxyHealth?.success) {
     try {
-      const apiTestResponse = await axios.get(
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      
+      const apiTestResponse = await fetch(
         `${TRIPO_CONFIG.proxyUrl}/api/v2/task/test`,
         {
+          method: 'GET',
           headers: {
             'Authorization': `Bearer ${process.env.TRIPO_API_KEY || 'tsk_4e-wfyELxLmo_ezM-qccv11sB13SYgJ7oHzNizwHz09'}`,
           },
-          timeout: 5000,
+          signal: controller.signal,
         }
       );
+      clearTimeout(timeoutId);
+      
       results.tests.tripoAPI = {
-        success: true,
+        success: apiTestResponse.ok,
         status: apiTestResponse.status,
       };
     } catch (error: any) {
       results.tests.tripoAPI = {
         success: false,
-        error: error.response?.data?.message || error.message,
-        status: error.response?.status,
+        error: error.message || 'Unknown error',
       };
     }
   }
