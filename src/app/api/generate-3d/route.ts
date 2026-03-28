@@ -3,12 +3,12 @@ import axios from 'axios';
 
 export const runtime = 'nodejs';
 
-// Tripo AI 配置
+// Tripo AI 配置 - 注意：Cloudflare Workers 必须使用 HTTPS
 const TRIPO_CONFIG = {
   clientId: process.env.TRIPO_CLIENT_ID || 'tcli_d63c726072c241789029971c4fa47f0e',
   apiKey: process.env.TRIPO_API_KEY || 'tsk_4e-wfyELxLmo_ezM-qccv11sB13SYgJ7oHzNizwHz09',
-  // 用户提供的 Cloudflare Worker 代理地址
-  proxyUrl: process.env.TRIPO_PROXY_URL || 'http://tripo-proxy.2776107357.workers.dev',
+  // 用户提供的 Cloudflare Worker 代理地址 (必须使用 HTTPS)
+  proxyUrl: process.env.TRIPO_PROXY_URL || 'https://tripo-proxy.2776107357.workers.dev',
 };
 
 // 演示用的示例模型

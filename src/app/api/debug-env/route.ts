@@ -8,7 +8,7 @@ export async function GET() {
     TRIPO_PROXY_URL: {
       exists: !!process.env.TRIPO_PROXY_URL,
       value: process.env.TRIPO_PROXY_URL || '(未设置，使用默认值)',
-      defaultValue: 'http://tripo-proxy.2776107357.workers.dev',
+      defaultValue: 'https://tripo-proxy.2776107357.workers.dev',
     },
     TRIPO_API_KEY: {
       exists: !!process.env.TRIPO_API_KEY,
@@ -27,7 +27,7 @@ export async function GET() {
       step1: '如果 TRIPO_PROXY_URL 显示"未设置"，请检查Vercel环境变量配置',
       step2: '如果已配置但未生效，请确认已重新部署',
       step3: '确保环境变量名称拼写正确（区分大小写）',
-      step4: '确保值为: http://tripo-proxy.2776107357.workers.dev',
+      step4: '确保值为: https://tripo-proxy.2776107357.workers.dev',
     },
     nextSteps: [
       '访问 /api/health 检查网络连接',

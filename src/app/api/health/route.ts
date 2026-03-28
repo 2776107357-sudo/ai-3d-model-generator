@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 
-// Tripo 配置
+// Tripo 配置 - 注意：Cloudflare Workers 必须使用 HTTPS
 const TRIPO_CONFIG = {
-  proxyUrl: process.env.TRIPO_PROXY_URL || 'http://tripo-proxy.2776107357.workers.dev',
+  proxyUrl: process.env.TRIPO_PROXY_URL || 'https://tripo-proxy.2776107357.workers.dev',
   hasApiKey: !!(process.env.TRIPO_API_KEY || true),
 };
 
