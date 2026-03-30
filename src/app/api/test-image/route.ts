@@ -8,7 +8,15 @@ export async function GET(request: NextRequest) {
   
   try {
     const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
-    console.log('[Test Image] Headers extracted');
+    console.log('[Test Image] Headers extracted:', JSON.stringify(customHeaders).substring(0, 200));
+    
+    // 尝试获取环境变量配置
+    const envInfo = {
+      COZE_API_KEY: process.env.COZE_API_KEY ? '已配置' : '未配置',
+      COZE_BASE_URL: process.env.COZE_BASE_URL || '未配置',
+      NODE_ENV: process.env.NODE_ENV,
+    };
+    console.log('[Test Image] Environment:', envInfo);
     
     const config = new Config();
     console.log('[Test Image] Config created');
@@ -27,6 +35,9 @@ export async function GET(request: NextRequest) {
     
     const helper = client.getResponseHelper(response);
     console.log('[Test Image] Helper created, success:', helper.success);
+    console.log('[Test Image] imageB64List length:', helper.imageB64List?.length);
+    console.log('[Test Image] imageUrls length:', helper.imageUrls?.length);
+    console.log('[Test Image] errorMessages:', helper.errorMessages);
     
     if (helper.success && helper.imageB64List.length > 0) {
       console.log('[Test Image] Image generated successfully');
@@ -40,11 +51,16 @@ export async function GET(request: NextRequest) {
         },
       });
     } else {
-      console.log('[Test Image] Generation failed:', helper.errorMessages);
+      console.log('[Test Image] Generation failed');
       return NextResponse.json({
         success: false,
         error: '图片生成失败',
         details: helper.errorMessages,
+        envInfo,
+        responseInfo: {
+          hasData: !!response.data,
+          dataLength: response.data?.length,
+        }
       }, { status: 500 });
     }
   } catch (error) {
@@ -52,6 +68,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack?.split('\n').slice(0, 3) : undefined,
+      envInfo: {
+        COZE_API_KEY: process.env.COZE_API_KEY ? '已配置' : '未配置',
+        COZE_BASE_URL: process.env.COZE_BASE_URL || '未配置',
+      }
     }, { status: 500 });
   }
 }

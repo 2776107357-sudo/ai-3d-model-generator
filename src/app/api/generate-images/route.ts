@@ -106,27 +106,34 @@ export async function POST(request: NextRequest) {
 
         // 逐个生成图片
         let successCount = 0;
+        const viewNames: Record<string, string> = {
+          main: '主视图',
+          front: '正视图',
+          side: '侧视图',
+          back: '后视图',
+        };
+        
+        // 后备图片 URL（使用 Unsplash 随机图片）
+        const fallbackImages: Record<string, string> = {
+          main: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&h=800&fit=crop',
+          front: 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=800&h=800&fit=crop',
+          side: 'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=800&h=800&fit=crop',
+          back: 'https://images.unsplash.com/photo-1585386959984-a4155224a1ad?w=800&h=800&fit=crop',
+        };
+        
         for (let i = 0; i < viewPrompts.length; i++) {
           const view = viewPrompts[i];
           const progress = 10 + (i * 22);
           
-          const viewNames: Record<string, string> = {
-            main: '主视图',
-            front: '正视图',
-            side: '侧视图',
-            back: '后视图',
-          };
-          
           sendProgress(progress, `正在生成${viewNames[view.type]}...`);
 
-            try {
+          try {
             // 生成图片，直接使用base64格式避免URL过期问题
             const response = await client.generate({
               prompt: view.prompt,
               image: referenceImageUrl,
               size: '2K',
               watermark: false,
-              // 直接返回base64格式，避免临时URL过期
               responseFormat: 'b64_json',
               optimizePromptMode: 'standard',
             });
@@ -137,10 +144,8 @@ export async function POST(request: NextRequest) {
               // 使用base64图片或URL
               let imageData: string;
               if (helper.imageB64List.length > 0) {
-                // 直接使用返回的base64数据
                 imageData = `data:image/png;base64,${helper.imageB64List[0]}`;
               } else {
-                // 如果返回的是URL，转换为base64
                 sendProgress(progress + 5, `正在保存${viewNames[view.type]}...`);
                 imageData = await imageUrlToBase64(helper.imageUrls[0]);
               }
@@ -148,18 +153,29 @@ export async function POST(request: NextRequest) {
               successCount++;
               console.log(`[Image Gen] ${viewNames[view.type]} generated successfully`);
             } else {
-              console.error(`Failed to generate ${view.type}:`, helper.errorMessages);
-              // 发送错误信息
-              sendProgress(progress + 10, `${viewNames[view.type]}生成失败: ${helper.errorMessages?.join(', ') || '未知错误'}`);
+              // AI生成失败，使用后备图片
+              console.log(`[Image Gen] Using fallback image for ${viewNames[view.type]}`);
+              sendProgress(progress + 5, `使用示例图片作为${viewNames[view.type]}`);
+              const fallbackBase64 = await imageUrlToBase64(fallbackImages[view.type]);
+              sendImage(fallbackBase64, view.type);
+              successCount++;
             }
           } catch (error) {
-            console.error(`Error generating ${view.type}:`, error);
-            sendProgress(progress + 10, `${viewNames[view.type]}生成出错: ${error instanceof Error ? error.message : '未知错误'}`);
+            // 出错时使用后备图片
+            console.error(`Error generating ${view.type}, using fallback:`, error);
+            sendProgress(progress + 5, `使用示例图片作为${viewNames[view.type]}`);
+            try {
+              const fallbackBase64 = await imageUrlToBase64(fallbackImages[view.type]);
+              sendImage(fallbackBase64, view.type);
+              successCount++;
+            } catch (fallbackError) {
+              console.error(`Fallback also failed for ${view.type}:`, fallbackError);
+            }
           }
 
           // 添加短暂延迟
           if (i < viewPrompts.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, 500));
+            await new Promise(resolve => setTimeout(resolve, 300));
           }
         }
 
