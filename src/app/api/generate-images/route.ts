@@ -30,6 +30,21 @@ function generateViewPrompts(basePrompt: string, hasReferenceImage: boolean): { 
   ];
 }
 
+// 将图片URL转换为base64
+async function imageUrlToBase64(url: string): Promise<string> {
+  try {
+    const response = await fetch(url);
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const base64 = buffer.toString('base64');
+    const contentType = response.headers.get('content-type') || 'image/png';
+    return `data:${contentType};base64,${base64}`;
+  } catch (error) {
+    console.error('Failed to convert image to base64:', error);
+    return url; // 如果转换失败，返回原始URL
+  }
+}
+
 export async function POST(request: NextRequest) {
   const encoder = new TextEncoder();
   
@@ -117,7 +132,10 @@ export async function POST(request: NextRequest) {
             const helper = client.getResponseHelper(response);
 
             if (helper.success && helper.imageUrls.length > 0) {
-              sendImage(helper.imageUrls[0], view.type);
+              // 将图片转换为base64以持久化存储，避免临时URL过期
+              sendProgress(progress + 5, `正在保存${viewNames[view.type]}...`);
+              const base64Image = await imageUrlToBase64(helper.imageUrls[0]);
+              sendImage(base64Image, view.type);
             } else {
               console.error(`Failed to generate ${view.type}:`, helper.errorMessages);
             }
