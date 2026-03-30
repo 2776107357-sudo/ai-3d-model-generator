@@ -8,21 +8,59 @@ function generateViewPrompts(basePrompt: string): { type: string; prompt: string
   return [
     {
       type: 'main',
-      prompt: `Product photography of ${basePrompt}, professional studio lighting, clean white background, high quality, detailed, 4k, commercial photography style`,
+      prompt: `Product photography of ${basePrompt}, professional studio lighting, clean white background, high quality, detailed, 4k`,
     },
     {
       type: 'front',
-      prompt: `Front view of ${basePrompt}, orthographic projection, clean white background, product photography, studio lighting, detailed, 4k`,
+      prompt: `Front view of ${basePrompt}, clean white background, product photography, detailed, 4k`,
     },
     {
       type: 'side',
-      prompt: `Side view of ${basePrompt}, orthographic projection, clean white background, product photography, studio lighting, detailed, 4k`,
+      prompt: `Side view of ${basePrompt}, clean white background, product photography, detailed, 4k`,
     },
     {
       type: 'back',
-      prompt: `Back view of ${basePrompt}, orthographic projection, clean white background, product photography, studio lighting, detailed, 4k`,
+      prompt: `Back view of ${basePrompt}, clean white background, product photography, detailed, 4k`,
     },
   ];
+}
+
+// 带超时的图片生成
+async function generateImageWithTimeout(
+  client: ImageGenerationClient,
+  prompt: string,
+  timeoutMs: number = 30000
+): Promise<string | null> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  
+  try {
+    const response = await client.generate({
+      prompt,
+      size: '2K',
+      watermark: false,
+      responseFormat: 'b64_json',
+    });
+    
+    clearTimeout(timeoutId);
+    
+    const helper = client.getResponseHelper(response);
+    
+    if (helper.success && helper.imageB64List.length > 0) {
+      return `data:image/png;base64,${helper.imageB64List[0]}`;
+    } else if (helper.success && helper.imageUrls.length > 0) {
+      // 下载图片
+      const imageResponse = await fetch(helper.imageUrls[0]);
+      const arrayBuffer = await imageResponse.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      return `data:image/png;base64,${buffer.toString('base64')}`;
+    }
+    
+    return null;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    throw error;
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -31,13 +69,11 @@ export async function POST(request: NextRequest) {
   const stream = new ReadableStream({
     async start(controller) {
       const sendProgress = (progress: number, message: string) => {
-        console.log(`[Progress] ${progress}%: ${message}`);
         const data = JSON.stringify({ type: 'progress', progress, message });
         controller.enqueue(encoder.encode(`data: ${data}\n\n`));
       };
 
       const sendImage = (url: string, imageType: string) => {
-        console.log(`[Image] Sent ${imageType}`);
         const data = JSON.stringify({ type: 'image', url, imageType });
         controller.enqueue(encoder.encode(`data: ${data}\n\n`));
       };
@@ -49,7 +85,6 @@ export async function POST(request: NextRequest) {
       };
 
       const sendError = (message: string) => {
-        console.error(`[Error] ${message}`);
         const data = JSON.stringify({ type: 'error', message });
         controller.enqueue(encoder.encode(`data: ${data}\n\n`));
         controller.close();
@@ -63,11 +98,6 @@ export async function POST(request: NextRequest) {
           sendError('请输入提示词');
           return;
         }
-
-        // 检查环境
-        const hasApiKey = !!(process.env.COZE_API_KEY);
-        console.log('[Env] COZE_API_KEY:', hasApiKey ? '已配置' : '未配置');
-        console.log('[Env] COZE_BASE_URL:', process.env.COZE_BASE_URL || '未配置');
 
         sendProgress(5, '正在初始化豆包图片生成...');
 
@@ -90,58 +120,37 @@ export async function POST(request: NextRequest) {
           const view = viewPrompts[i];
           const progress = 10 + (i * 22);
           
-          sendProgress(progress, `正在使用豆包生成${viewNames[view.type]}...`);
+          sendProgress(progress, `正在生成${viewNames[view.type]}...`);
 
           try {
-            // 使用 b64_json 格式直接返回 base64
-            const response = await client.generate({
-              prompt: view.prompt,
-              size: '2K',
-              watermark: false,
-              responseFormat: 'b64_json',
-            });
-
-            const helper = client.getResponseHelper(response);
-            console.log(`[Result] ${view.type}: success=${helper.success}, b64Length=${helper.imageB64List?.length}, urls=${helper.imageUrls?.length}, errors=${helper.errorMessages?.length}`);
-
-            if (helper.success) {
-              if (helper.imageB64List.length > 0) {
-                // 直接使用 base64 数据
-                const base64Image = `data:image/png;base64,${helper.imageB64List[0]}`;
-                sendImage(base64Image, view.type);
-                successCount++;
-              } else if (helper.imageUrls.length > 0) {
-                // 下载 URL 并转换为 base64
-                sendProgress(progress + 5, `正在保存${viewNames[view.type]}...`);
-                const imageResponse = await fetch(helper.imageUrls[0]);
-                const arrayBuffer = await imageResponse.arrayBuffer();
-                const buffer = Buffer.from(arrayBuffer);
-                const base64 = buffer.toString('base64');
-                const base64Image = `data:image/png;base64,${base64}`;
-                sendImage(base64Image, view.type);
-                successCount++;
-              }
+            // 使用超时控制
+            const imageUrl = await generateImageWithTimeout(client, view.prompt, 60000);
+            
+            if (imageUrl) {
+              sendImage(imageUrl, view.type);
+              successCount++;
             } else {
-              console.error(`[Failed] ${view.type}:`, helper.errorMessages);
+              console.log(`[Skip] ${view.type}: 无返回结果`);
             }
-          } catch (error) {
-            console.error(`[Error] ${view.type}:`, error);
+          } catch (error: any) {
+            console.error(`[Error] ${view.type}:`, error.message);
+            // 继续生成下一张
           }
 
-          await new Promise(resolve => setTimeout(resolve, 300));
+          // 短暂延迟
+          await new Promise(resolve => setTimeout(resolve, 500));
         }
 
         if (successCount === 0) {
-          sendError('图片生成失败。可能原因：1) 未配置 COZE_API_KEY 环境变量 2) API 配额不足。请在 Vercel 中配置环境变量后重试。');
+          sendError('所有图片生成失败。请检查：1) Vercel 中是否配置了 COZE_API_KEY 2) API Key 是否有效 3) 网络是否正常');
           return;
         }
 
         sendProgress(100, `图片生成完成！成功生成 ${successCount} 张图片`);
         sendComplete();
-      } catch (error) {
+      } catch (error: any) {
         console.error('[Fatal Error]:', error);
-        const errorMessage = error instanceof Error ? error.message : '未知错误';
-        sendError(`生成失败: ${errorMessage}。请确保在 Vercel 中配置了 COZE_API_KEY 环境变量。`);
+        sendError(`生成失败: ${error.message}`);
       }
     },
   });
