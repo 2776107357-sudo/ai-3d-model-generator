@@ -105,6 +105,7 @@ export async function POST(request: NextRequest) {
         }
 
         // 逐个生成图片
+        let successCount = 0;
         for (let i = 0; i < viewPrompts.length; i++) {
           const view = viewPrompts[i];
           const progress = 10 + (i * 22);
@@ -136,11 +137,16 @@ export async function POST(request: NextRequest) {
               sendProgress(progress + 5, `正在保存${viewNames[view.type]}...`);
               const base64Image = await imageUrlToBase64(helper.imageUrls[0]);
               sendImage(base64Image, view.type);
+              successCount++;
+              console.log(`[Image Gen] ${viewNames[view.type]} generated successfully`);
             } else {
               console.error(`Failed to generate ${view.type}:`, helper.errorMessages);
+              // 发送错误信息
+              sendProgress(progress + 10, `${viewNames[view.type]}生成失败: ${helper.errorMessages?.join(', ') || '未知错误'}`);
             }
           } catch (error) {
             console.error(`Error generating ${view.type}:`, error);
+            sendProgress(progress + 10, `${viewNames[view.type]}生成出错: ${error instanceof Error ? error.message : '未知错误'}`);
           }
 
           // 添加短暂延迟
@@ -149,7 +155,13 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        sendProgress(100, '所有图片生成完成！');
+        // 检查是否有成功生成的图片
+        if (successCount === 0) {
+          sendError('所有图片生成失败，请重试或检查网络连接');
+          return;
+        }
+
+        sendProgress(100, `图片生成完成！成功生成 ${successCount} 张图片`);
         sendComplete();
       } catch (error) {
         console.error('Generate images error:', error);

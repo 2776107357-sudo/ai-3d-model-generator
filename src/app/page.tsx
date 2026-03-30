@@ -452,16 +452,23 @@ export default function Home() {
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {generatedImages.map((img, index) => (
-                    <div key={index} className="relative aspect-square rounded-lg overflow-hidden border-2 hover:border-primary transition-colors">
-                      <img src={img.url} alt={img.type} className="w-full h-full object-cover" />
-                      <Badge className="absolute bottom-2 left-2" variant="secondary">
-                        {img.type === 'main' ? '主视图' : 
-                         img.type === 'front' ? '正视图' : 
-                         img.type === 'side' ? '侧视图' : '后视图'}
-                      </Badge>
+                  {generatedImages.length === 0 ? (
+                    <div className="col-span-4 text-center py-8 text-muted-foreground">
+                      <ImageIcon className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                      <p>图片生成失败，请点击"重新生成"重试</p>
                     </div>
-                  ))}
+                  ) : (
+                    generatedImages.map((img, index) => (
+                      <div key={index} className="relative aspect-square rounded-lg overflow-hidden border-2 hover:border-primary transition-colors">
+                        <img src={img.url} alt={img.type} className="w-full h-full object-cover" />
+                        <Badge className="absolute bottom-2 left-2" variant="secondary">
+                          {img.type === 'main' ? '主视图' : 
+                           img.type === 'front' ? '正视图' : 
+                           img.type === 'side' ? '侧视图' : '后视图'}
+                        </Badge>
+                      </div>
+                    ))
+                  )}
                 </div>
 
                 {/* 网络状态提示 */}
@@ -497,6 +504,7 @@ export default function Home() {
                   </Button>
                   <Button 
                     onClick={handleConfirmAndGenerate3D}
+                    disabled={generatedImages.length === 0}
                     className="px-8"
                   >
                     <CheckCircle className="w-4 h-4 mr-2" />
