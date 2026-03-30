@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 
 export const runtime = 'nodejs';
 
-// 本地图片路径（存储在 public 目录）
+// 本地图片（快速响应）
 const LOCAL_IMAGES = {
   main: '/images/main.jpg',
   front: '/images/front.jpg',
@@ -15,26 +15,8 @@ export async function POST(request: NextRequest) {
   
   const stream = new ReadableStream({
     async start(controller) {
-      const sendProgress = (progress: number, message: string) => {
-        const data = JSON.stringify({ type: 'progress', progress, message });
-        controller.enqueue(encoder.encode(`data: ${data}\n\n`));
-      };
-
-      const sendImage = (url: string, imageType: string) => {
-        const data = JSON.stringify({ type: 'image', url, imageType });
-        controller.enqueue(encoder.encode(`data: ${data}\n\n`));
-      };
-
-      const sendComplete = () => {
-        const data = JSON.stringify({ type: 'complete' });
-        controller.enqueue(encoder.encode(`data: ${data}\n\n`));
-        controller.close();
-      };
-
-      const sendError = (message: string) => {
-        const data = JSON.stringify({ type: 'error', message });
-        controller.enqueue(encoder.encode(`data: ${data}\n\n`));
-        controller.close();
+      const sendEvent = (data: object) => {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
       };
 
       try {
@@ -42,38 +24,37 @@ export async function POST(request: NextRequest) {
         const prompt = formData.get('prompt') as string;
 
         if (!prompt?.trim()) {
-          sendError('请输入提示词');
+          sendEvent({ type: 'error', message: '请输入提示词' });
+          controller.close();
           return;
         }
 
-        sendProgress(5, '正在准备生成图片...');
+        sendEvent({ type: 'progress', progress: 5, message: '正在准备图片...' });
 
-        const viewTypes = ['main', 'front', 'side', 'back'] as const;
-        const viewNames: Record<string, string> = {
-          main: '主视图',
-          front: '正视图',
-          side: '侧视图',
-          back: '后视图',
-        };
+        const views = [
+          { type: 'main', name: '主视图' },
+          { type: 'front', name: '正视图' },
+          { type: 'side', name: '侧视图' },
+          { type: 'back', name: '后视图' },
+        ];
 
-        // 使用本地图片
-        for (let i = 0; i < viewTypes.length; i++) {
-          const viewType = viewTypes[i];
+        // 快速返回本地图片
+        for (let i = 0; i < views.length; i++) {
+          const view = views[i];
           const progress = 20 + (i * 20);
           
-          sendProgress(progress, `正在生成${viewNames[viewType]}...`);
+          sendEvent({ type: 'progress', progress, message: `生成${view.name}...` });
+          sendEvent({ type: 'image', url: LOCAL_IMAGES[view.type as keyof typeof LOCAL_IMAGES], imageType: view.type });
           
-          // 使用本地图片路径
-          sendImage(LOCAL_IMAGES[viewType], viewType);
-          
-          await new Promise(resolve => setTimeout(resolve, 200));
+          await new Promise(resolve => setTimeout(resolve, 100));
         }
 
-        sendProgress(100, '图片生成完成！');
-        sendComplete();
+        sendEvent({ type: 'progress', progress: 100, message: '图片生成完成！' });
+        sendEvent({ type: 'complete' });
+        controller.close();
       } catch (error) {
-        console.error('Generate images error:', error);
-        sendError(error instanceof Error ? error.message : '生成图片失败');
+        sendEvent({ type: 'error', message: error instanceof Error ? error.message : '生成失败' });
+        controller.close();
       }
     },
   });
