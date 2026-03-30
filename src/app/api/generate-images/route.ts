@@ -128,16 +128,14 @@ export async function POST(request: NextRequest) {
 
         sendProgress(5, '正在初始化豆包图片生成...');
 
-        // 初始化客户端 - 显式传入 API Key
+        // 初始化客户端 - 让 SDK 自动使用沙箱环境认证
         const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
         
-        // 检查环境变量
-        const apiKey = process.env.COZE_API_KEY;
-        console.log(`[Init] API Key 状态: ${apiKey ? '已配置' : '未配置'}`);
-        
-        // 创建配置，显式传入 API Key（如果环境变量中有）
-        const config = apiKey ? new Config({ apiKey }) : new Config();
+        // 不传 API Key，让 SDK 自动从沙箱环境变量获取认证
+        const config = new Config();
         const client = new ImageGenerationClient(config, customHeaders);
+        
+        console.log('[Init] 使用沙箱环境认证');
         
         console.log('[Init] 客户端初始化完成');
 
