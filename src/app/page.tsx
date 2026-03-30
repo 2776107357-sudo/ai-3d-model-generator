@@ -143,6 +143,9 @@ export default function Home() {
                 if (data.type === 'progress') {
                   setProgress(data.progress);
                   setStatusText(data.message);
+                } else if (data.type === 'heartbeat') {
+                  // 心跳消息，更新状态提示用户正在等待
+                  setStatusText(data.message);
                 } else if (data.type === 'image') {
                   setGeneratedImages(prev => [...prev, {
                     url: data.url,
