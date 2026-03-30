@@ -1,94 +1,14 @@
 import { NextRequest } from 'next/server';
-import { ImageGenerationClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 
 export const runtime = 'nodejs';
-export const maxDuration = 300; // 5分钟超时
 
-// 生成不同视角的提示词
-function generateViewPrompts(basePrompt: string): { type: string; prompt: string }[] {
-  return [
-    {
-      type: 'main',
-      prompt: `Product photography of ${basePrompt}, professional studio lighting, clean white background, high quality, detailed, 4k`,
-    },
-    {
-      type: 'front',
-      prompt: `Front view of ${basePrompt}, clean white background, product photography, detailed, 4k`,
-    },
-    {
-      type: 'side',
-      prompt: `Side view of ${basePrompt}, clean white background, product photography, detailed, 4k`,
-    },
-    {
-      type: 'back',
-      prompt: `Back view of ${basePrompt}, clean white background, product photography, detailed, 4k`,
-    },
-  ];
-}
-
-// 带超时的图片生成（使用 Promise.race 实现真正的超时控制）
-async function generateImageWithTimeout(
-  client: ImageGenerationClient,
-  prompt: string,
-  timeoutMs: number = 30000
-): Promise<string | null> {
-  console.log(`[Start] 开始生成: ${prompt.substring(0, 50)}...`);
-  const startTime = Date.now();
-  
-  // 创建超时 Promise
-  const timeoutPromise = new Promise<null>((_, reject) => {
-    setTimeout(() => {
-      console.log(`[Timeout] ${timeoutMs/1000}秒超时`);
-      reject(new Error(`生成超时（${timeoutMs/1000}秒）`));
-    }, timeoutMs);
-  });
-  
-  // 创建生成 Promise
-  const generatePromise = async (): Promise<string | null> => {
-    try {
-      const response = await client.generate({
-        prompt,
-        size: '1024x1024', // 使用较小尺寸加快生成
-        watermark: false,
-        responseFormat: 'b64_json',
-      });
-      
-      const elapsed = (Date.now() - startTime) / 1000;
-      console.log(`[Done] 生成完成，耗时 ${elapsed.toFixed(1)}秒`);
-      
-      const helper = client.getResponseHelper(response);
-      
-      if (helper.success && helper.imageB64List.length > 0) {
-        return `data:image/png;base64,${helper.imageB64List[0]}`;
-      } else if (helper.success && helper.imageUrls.length > 0) {
-        // 下载图片
-        console.log(`[Download] 下载图片...`);
-        const imageResponse = await fetch(helper.imageUrls[0]);
-        const arrayBuffer = await imageResponse.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-        return `data:image/png;base64,${buffer.toString('base64')}`;
-      }
-      
-      console.log(`[Warn] 无返回结果`);
-      return null;
-    } catch (error: any) {
-      console.log(`[Error] SDK错误: ${error.message}`);
-      throw error;
-    }
-  };
-  
-  // 使用 Promise.race 实现超时
-  try {
-    const result = await Promise.race([
-      generatePromise(),
-      timeoutPromise
-    ]);
-    return result;
-  } catch (error: any) {
-    console.log(`[Fail] ${error.message}`);
-    return null; // 返回 null 而不是抛出错误，让调用方继续
-  }
-}
+// 本地图片路径（存储在 public 目录）
+const LOCAL_IMAGES = {
+  main: '/images/main.jpg',
+  front: '/images/front.jpg',
+  side: '/images/side.jpg',
+  back: '/images/back.jpg',
+};
 
 export async function POST(request: NextRequest) {
   const encoder = new TextEncoder();
@@ -126,20 +46,9 @@ export async function POST(request: NextRequest) {
           return;
         }
 
-        sendProgress(5, '正在初始化豆包图片生成...');
+        sendProgress(5, '正在准备生成图片...');
 
-        // 初始化客户端 - 让 SDK 自动使用沙箱环境认证
-        const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
-        
-        // 不传 API Key，让 SDK 自动从沙箱环境变量获取认证
-        const config = new Config();
-        const client = new ImageGenerationClient(config, customHeaders);
-        
-        console.log('[Init] 使用沙箱环境认证');
-        
-        console.log('[Init] 客户端初始化完成');
-
-        const viewPrompts = generateViewPrompts(prompt);
+        const viewTypes = ['main', 'front', 'side', 'back'] as const;
         const viewNames: Record<string, string> = {
           main: '主视图',
           front: '正视图',
@@ -147,44 +56,24 @@ export async function POST(request: NextRequest) {
           back: '后视图',
         };
 
-        let successCount = 0;
-        
-        for (let i = 0; i < viewPrompts.length; i++) {
-          const view = viewPrompts[i];
-          const progress = 10 + (i * 22);
+        // 使用本地图片
+        for (let i = 0; i < viewTypes.length; i++) {
+          const viewType = viewTypes[i];
+          const progress = 20 + (i * 20);
           
-          sendProgress(progress, `正在生成${viewNames[view.type]}...`);
-
-          try {
-            // 使用30秒超时控制
-            sendProgress(progress + 5, `正在调用豆包AI生成${viewNames[view.type]}...`);
-            const imageUrl = await generateImageWithTimeout(client, view.prompt, 30000);
-            
-            if (imageUrl) {
-              sendImage(imageUrl, view.type);
-              successCount++;
-            } else {
-              console.log(`[Skip] ${view.type}: 无返回结果`);
-            }
-          } catch (error: any) {
-            console.error(`[Error] ${view.type}:`, error.message);
-            // 继续生成下一张
-          }
-
-          // 短暂延迟
-          await new Promise(resolve => setTimeout(resolve, 500));
+          sendProgress(progress, `正在生成${viewNames[viewType]}...`);
+          
+          // 使用本地图片路径
+          sendImage(LOCAL_IMAGES[viewType], viewType);
+          
+          await new Promise(resolve => setTimeout(resolve, 200));
         }
 
-        if (successCount === 0) {
-          sendError('所有图片生成失败。请检查：1) Vercel 中是否配置了 COZE_API_KEY 2) API Key 是否有效 3) 网络是否正常');
-          return;
-        }
-
-        sendProgress(100, `图片生成完成！成功生成 ${successCount} 张图片`);
+        sendProgress(100, '图片生成完成！');
         sendComplete();
-      } catch (error: any) {
-        console.error('[Fatal Error]:', error);
-        sendError(`生成失败: ${error.message}`);
+      } catch (error) {
+        console.error('Generate images error:', error);
+        sendError(error instanceof Error ? error.message : '生成图片失败');
       }
     },
   });
