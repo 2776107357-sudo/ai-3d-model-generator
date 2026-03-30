@@ -119,24 +119,32 @@ export async function POST(request: NextRequest) {
           
           sendProgress(progress, `正在生成${viewNames[view.type]}...`);
 
-          try {
-            // 生成图片，参考图权重较低（仅作为灵感参考）
+            try {
+            // 生成图片，直接使用base64格式避免URL过期问题
             const response = await client.generate({
               prompt: view.prompt,
               image: referenceImageUrl,
               size: '2K',
               watermark: false,
-              // 使用标准模式，让AI更多依赖文字描述而非参考图
+              // 直接返回base64格式，避免临时URL过期
+              responseFormat: 'b64_json',
               optimizePromptMode: 'standard',
             });
 
             const helper = client.getResponseHelper(response);
 
-            if (helper.success && helper.imageUrls.length > 0) {
-              // 将图片转换为base64以持久化存储，避免临时URL过期
-              sendProgress(progress + 5, `正在保存${viewNames[view.type]}...`);
-              const base64Image = await imageUrlToBase64(helper.imageUrls[0]);
-              sendImage(base64Image, view.type);
+            if (helper.success && (helper.imageUrls.length > 0 || helper.imageB64List.length > 0)) {
+              // 使用base64图片或URL
+              let imageData: string;
+              if (helper.imageB64List.length > 0) {
+                // 直接使用返回的base64数据
+                imageData = `data:image/png;base64,${helper.imageB64List[0]}`;
+              } else {
+                // 如果返回的是URL，转换为base64
+                sendProgress(progress + 5, `正在保存${viewNames[view.type]}...`);
+                imageData = await imageUrlToBase64(helper.imageUrls[0]);
+              }
+              sendImage(imageData, view.type);
               successCount++;
               console.log(`[Image Gen] ${viewNames[view.type]} generated successfully`);
             } else {
