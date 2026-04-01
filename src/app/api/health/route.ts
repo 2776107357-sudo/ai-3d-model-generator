@@ -2,27 +2,54 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 
+// Tripo 配置
+const TRIPO_CONFIG = {
+  proxyUrl: process.env.TRIPO_PROXY_URL || 'https://tripo-proxy4.2776107357.workers.dev',
+  hasApiKey: !!(process.env.TRIPO_API_KEY || true),
+};
+
 export async function GET(request: NextRequest) {
-  // 直接返回网络不可用状态
-  // 因为 Cloudflare Workers 代理已失效，沙箱无法直接访问 Tripo API
-  const results = {
+  const results: any = {
     timestamp: new Date().toISOString(),
     config: {
-      proxyUrl: 'https://tripo-proxy.2776107357.workers.dev',
-      hasApiKey: true,
+      proxyUrl: TRIPO_CONFIG.proxyUrl,
+      hasApiKey: TRIPO_CONFIG.hasApiKey,
     },
-    tests: {
-      proxyHealth: {
-        success: false,
-        error: 'Cloudflare Workers proxy is no longer available',
-      },
-    },
-    summary: {
-      allPassed: false,
-      proxyAvailable: false,
-      apiReady: false,
-      recommendation: '当前使用演示模式，展示示例3D模型。如需真实生成，请重新部署 Cloudflare Workers 代理。',
-    },
+    tests: {},
+  };
+
+  // 测试代理健康检查
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    
+    const healthResponse = await fetch(`${TRIPO_CONFIG.proxyUrl}/health`, {
+      method: 'GET',
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    
+    const healthData = await healthResponse.json();
+    results.tests.proxyHealth = {
+      success: healthResponse.ok,
+      status: healthResponse.status,
+      data: healthData,
+    };
+  } catch (error: any) {
+    results.tests.proxyHealth = {
+      success: false,
+      error: error.message || 'Unknown error',
+    };
+  }
+
+  // 总结
+  results.summary = {
+    allPassed: results.tests.proxyHealth?.success || false,
+    proxyAvailable: results.tests.proxyHealth?.success || false,
+    apiReady: results.tests.proxyHealth?.success || false,
+    recommendation: results.tests.proxyHealth?.success 
+      ? '系统正常，可以生成3D模型'
+      : '代理不可用，将使用演示模式',
   };
 
   return NextResponse.json(results);
