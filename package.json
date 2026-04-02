@@ -5,9 +5,8 @@
   "scripts": {
     "build": "next build",
     "dev": "bash ./scripts/dev.sh",
-    "preinstall": "npx only-allow pnpm",
     "lint": "eslint",
-    "start": "next start",
+    "start": "next start -p ${PORT:-5000}",
     "ts-check": "tsc -p tsconfig.json"
   },
   "dependencies": {
@@ -94,6 +93,7 @@
   },
   "packageManager": "pnpm@9.0.0",
   "engines": {
+    "node": ">=20.0.0",
     "pnpm": ">=9.0.0"
   }
 }
