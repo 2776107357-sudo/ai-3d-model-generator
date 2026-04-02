@@ -2,7 +2,17 @@ import { NextRequest } from 'next/server';
 import { ImageGenerationClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 
 export const runtime = 'nodejs';
-export const maxDuration = 60; // 最大 60 秒（Hobby 计划实际限制 10 秒）
+export const maxDuration = 300; // Railway 支持 5 分钟
+
+// 超时工具函数
+function timeout<T>(promise: Promise<T>, ms: number, msg: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => 
+      setTimeout(() => reject(new Error(msg)), ms)
+    )
+  ]);
+}
 
 export async function POST(request: NextRequest) {
   const encoder = new TextEncoder();
@@ -20,9 +30,7 @@ export async function POST(request: NextRequest) {
       const sendError = (message: string) => {
         console.error('[Image Gen] Error:', message);
         sendEvent({ type: 'error', message });
-        try {
-          controller.close();
-        } catch (e) {}
+        try { controller.close(); } catch (e) {}
       };
 
       try {
@@ -37,40 +45,59 @@ export async function POST(request: NextRequest) {
         console.log('[Image Gen] Starting generation for prompt:', prompt);
         sendEvent({ type: 'progress', progress: 5, message: '正在初始化...' });
 
+        // 检查环境变量
+        const apiKey = process.env.COZE_API_KEY;
+        if (!apiKey) {
+          sendError('服务配置错误：缺少 COZE_API_KEY 环境变量');
+          return;
+        }
+        console.log('[Image Gen] API Key found, length:', apiKey.length);
+
         // 提取请求头
         let customHeaders: Record<string, string> = {};
         try {
           customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
+          console.log('[Image Gen] Headers extracted');
         } catch (e) {
-          console.log('[Image Gen] Header extraction failed:', e);
+          console.log('[Image Gen] Header extraction failed, using empty:', e);
         }
         
         // 初始化客户端
+        console.log('[Image Gen] Initializing client...');
         const config = new Config();
         const client = new ImageGenerationClient(config, customHeaders);
+        console.log('[Image Gen] Client initialized');
 
-        // 简化提示词，加快生成速度
-        const mainPrompt = `${prompt}, product photography, clean white background, professional lighting, high quality`;
+        // 简化提示词
+        const mainPrompt = `${prompt}, product photography, clean white background, high quality`;
         
         sendEvent({ type: 'progress', progress: 10, message: '正在生成图片...' });
         sendEvent({ type: 'heartbeat', message: 'AI 正在创作中，请稍候...' });
 
-        try {
-          const response = await client.generate({
-            prompt: mainPrompt,
-            size: '2K',
-            watermark: false,
-          });
+        console.log('[Image Gen] Calling API with prompt:', mainPrompt.substring(0, 100));
 
+        try {
+          // 添加 90 秒超时
+          const response = await timeout(
+            client.generate({
+              prompt: mainPrompt,
+              size: '2K',
+              watermark: false,
+            }),
+            90000,
+            '图片生成超时（90秒），请重试'
+          );
+
+          console.log('[Image Gen] API response received');
           const helper = client.getResponseHelper(response);
           
           if (helper.success && helper.imageUrls.length > 0) {
             const imageUrl = helper.imageUrls[0];
-            console.log('[Image Gen] Success:', imageUrl.substring(0, 50));
+            console.log('[Image Gen] Success, image URL:', imageUrl.substring(0, 50));
             
             sendEvent({ type: 'progress', progress: 50, message: '图片生成完成' });
             
-            // 发送同一张图片作为所有视角（Vercel Hobby 计划有时间限制）
+            // 发送图片
             const views = ['main', 'front', 'side', 'back'];
             const viewNames = ['主视图', '正视图', '侧视图', '后视图'];
             
@@ -89,6 +116,7 @@ export async function POST(request: NextRequest) {
             controller.close();
           } else {
             const errorMsg = helper.errorMessages.join(', ') || '生成失败';
+            console.error('[Image Gen] Generation failed:', errorMsg);
             sendError(`生成失败: ${errorMsg}`);
           }
         } catch (error) {
