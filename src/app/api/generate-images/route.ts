@@ -4,14 +4,6 @@ import { ImageGenerationClient, Config, HeaderUtils } from 'coze-coding-dev-sdk'
 export const runtime = 'nodejs';
 export const maxDuration = 120;
 
-// 本地备用图片（当 AI 生成失败时使用）
-const FALLBACK_IMAGES = {
-  main: '/images/main.jpg',
-  front: '/images/front.jpg',
-  side: '/images/side.jpg',
-  back: '/images/back.jpg',
-};
-
 // 视角描述
 const VIEW_PROMPTS = {
   main: 'main product view, front-facing, professional product photography, clean background, well-lit, high detail',
@@ -29,17 +21,22 @@ export async function POST(request: NextRequest) {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
       };
 
+      const sendError = (message: string) => {
+        sendEvent({ type: 'error', message });
+        controller.close();
+      };
+
       try {
         const formData = await request.formData();
         const prompt = formData.get('prompt') as string;
         const referenceImage = formData.get('referenceImage') as string | null;
 
         if (!prompt?.trim()) {
-          sendEvent({ type: 'error', message: '请输入提示词' });
-          controller.close();
+          sendError('请输入提示词');
           return;
         }
 
+        console.log('[Image Gen] Starting generation for prompt:', prompt);
         sendEvent({ type: 'progress', progress: 5, message: '正在初始化 AI 图片生成...' });
 
         // 提取请求头
@@ -56,11 +53,15 @@ export async function POST(request: NextRequest) {
           { type: 'back', name: '后视图' },
         ];
 
-        // 构建生成请求
-        const generatePromises = views.map(async (view, index) => {
+        // 顺序生成每张图片（避免并发问题）
+        const results = [];
+        
+        for (let i = 0; i < views.length; i++) {
+          const view = views[i];
           const viewPrompt = `${prompt}, ${VIEW_PROMPTS[view.type as keyof typeof VIEW_PROMPTS]}, 4K, high quality, realistic`;
           
-          sendEvent({ type: 'progress', progress: 10 + index * 5, message: `准备生成${view.name}...` });
+          sendEvent({ type: 'progress', progress: 10 + i * 20, message: `正在生成${view.name}...` });
+          console.log(`[${view.name}] Generating with prompt:`, viewPrompt.substring(0, 100));
 
           try {
             const response = await client.generate({
@@ -73,56 +74,43 @@ export async function POST(request: NextRequest) {
             const helper = client.getResponseHelper(response);
             
             if (helper.success && helper.imageUrls.length > 0) {
-              return {
+              const imageUrl = helper.imageUrls[0];
+              console.log(`[${view.name}] Success:`, imageUrl.substring(0, 50));
+              
+              results.push({
                 type: view.type,
                 name: view.name,
-                url: helper.imageUrls[0],
+                url: imageUrl,
                 success: true,
-              };
+              });
+              
+              sendEvent({ 
+                type: 'image', 
+                url: imageUrl, 
+                imageType: view.type,
+                isGenerated: true,
+              });
             } else {
-              console.error(`[${view.name}] Generation failed:`, helper.errorMessages);
-              return {
-                type: view.type,
-                name: view.name,
-                url: FALLBACK_IMAGES[view.type as keyof typeof FALLBACK_IMAGES],
-                success: false,
-                error: helper.errorMessages.join(', '),
-              };
+              const errorMsg = helper.errorMessages.join(', ') || '生成失败';
+              console.error(`[${view.name}] Generation failed:`, errorMsg);
+              
+              // 不再降级到本地图片，直接返回错误
+              sendError(`${view.name}生成失败: ${errorMsg}`);
+              return;
             }
           } catch (error) {
-            console.error(`[${view.name}] Error:`, error);
-            return {
-              type: view.type,
-              name: view.name,
-              url: FALLBACK_IMAGES[view.type as keyof typeof FALLBACK_IMAGES],
-              success: false,
-              error: error instanceof Error ? error.message : 'Unknown error',
-            };
+            const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+            console.error(`[${view.name}] Error:`, errorMsg);
+            
+            // 不再降级到本地图片，直接返回错误
+            sendError(`${view.name}生成失败: ${errorMsg}`);
+            return;
           }
-        });
-
-        // 并行生成所有视角
-        sendEvent({ type: 'progress', progress: 30, message: '正在使用 AI 生成图片...' });
-
-        const results = await Promise.all(generatePromises);
-
-        // 发送结果
-        results.forEach((result, index) => {
-          const progress = 40 + index * 15;
-          sendEvent({ type: 'progress', progress, message: `${result.name}生成完成` });
-          sendEvent({ 
-            type: 'image', 
-            url: result.url, 
-            imageType: result.type,
-            isGenerated: result.success,
-          });
-        });
+        }
 
         // 统计成功数量
         const successCount = results.filter(r => r.success).length;
-        const message = successCount === 4 
-          ? '所有图片生成完成！' 
-          : `图片生成完成（${successCount}/4 使用 AI 生成）`;
+        const message = `图片生成完成！共 ${successCount} 张`;
 
         sendEvent({ type: 'progress', progress: 100, message });
         sendEvent({ type: 'complete', successCount, totalCount: 4 });
@@ -130,8 +118,7 @@ export async function POST(request: NextRequest) {
 
       } catch (error) {
         console.error('[Image Gen] Fatal error:', error);
-        sendEvent({ type: 'error', message: error instanceof Error ? error.message : '生成失败' });
-        controller.close();
+        sendError(error instanceof Error ? error.message : '生成失败，请重试');
       }
     },
   });
