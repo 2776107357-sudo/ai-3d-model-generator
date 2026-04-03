@@ -3,25 +3,21 @@ import { NextResponse } from 'next/server';
 export const runtime = 'nodejs';
 export const maxDuration = 120;
 
+const API_KEY = '46f3236a-27f4-435f-8df8-6558e9c40f02';
+
+// 测试多个可能的 API 端点
+const endpoints = [
+  { url: 'https://api.mihoyo.com/v1/images/generations', name: 'Mihoyo V1' },
+  { url: 'https://api.mihoyo.ai/v1/images/generations', name: 'Mihoyo AI V1' },
+  { url: 'https://mihoyo.ai/api/v1/images/generations', name: 'Mihoyo AI API' },
+  { url: 'https://api.jimeng.ai/v1/images/generations', name: 'Jimeng V1' },
+  { url: 'https://jimeng.ai/api/v1/images/generations', name: 'Jimeng API' },
+  { url: 'https://api.jimeng.mihoyo.com/v1/images/generations', name: 'Jimeng Mihoyo' },
+];
+
 export async function GET() {
-  console.log('[Debug] Starting image generation test...');
+  console.log('[Debug] Testing MiHoYo/Jimeng API endpoints...');
   
-  const apiKey = process.env.COZE_API_KEY;
-  console.log('[Debug] COZE_API_KEY exists:', !!apiKey);
-  
-  if (!apiKey) {
-    return NextResponse.json({ 
-      success: false, 
-      error: 'COZE_API_KEY not found' 
-    });
-  }
-
-  const endpoints = [
-    { url: 'https://api.coze.cn/v1/images/generations', name: 'V1 Images' },
-    { url: 'https://api.coze.cn/open_api/v1/images/generations', name: 'Open API V1' },
-    { url: 'https://api.coze.cn/v3/images/generations', name: 'V3 Images' },
-  ];
-
   const results = [];
 
   for (const endpoint of endpoints) {
@@ -33,7 +29,7 @@ export async function GET() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
+          'Authorization': `Bearer ${API_KEY}`,
         },
         body: JSON.stringify({
           prompt: 'a red apple',
@@ -51,7 +47,7 @@ export async function GET() {
         status: response.status,
         duration: `${duration}ms`,
         success: response.ok,
-        response: text.substring(0, 300),
+        response: text.substring(0, 500),
       });
     } catch (error) {
       results.push({
@@ -62,9 +58,16 @@ export async function GET() {
     }
   }
 
+  // 同时尝试不同的认证方式
+  const authTests = [
+    { header: 'Authorization', value: `Bearer ${API_KEY}` },
+    { header: 'X-API-Key', value: API_KEY },
+    { header: 'api-key', value: API_KEY },
+  ];
+
   return NextResponse.json({
-    success: results.some(r => r.success),
     results,
-    note: 'Testing multiple Coze API endpoints to find the correct one',
+    note: 'Testing multiple API endpoints to find the correct one',
+    apiKeyPrefix: API_KEY.substring(0, 8) + '...',
   });
 }
