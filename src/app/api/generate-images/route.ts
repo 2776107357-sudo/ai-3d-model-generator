@@ -41,7 +41,6 @@ export async function POST(request: NextRequest) {
         console.log('[Image Gen] Starting for:', prompt);
         sendEvent({ type: 'progress', progress: 5, message: '正在初始化...' });
 
-        // 使用豆包 API（通过 Coze 平台）
         const apiKey = process.env.COZE_API_KEY;
         if (!apiKey) {
           sendError('缺少 COZE_API_KEY 环境变量');
@@ -51,17 +50,16 @@ export async function POST(request: NextRequest) {
         sendEvent({ type: 'progress', progress: 10, message: '正在生成图片...' });
 
         try {
-          // 直接调用 Coze API
+          // 尝试 Coze V1 API（豆包图片生成）
           const response = await timeout(
-            fetch('https://api.coze.cn/v3/images/generations', {
+            fetch('https://api.coze.cn/v1/images/generations', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${apiKey}`,
               },
               body: JSON.stringify({
-                model: 'doubao-seedream-3-0-t2i-250415',
-                prompt: `${prompt}, product photography, clean white background, high quality, professional lighting`,
+                prompt: `${prompt}, product photography, clean white background, high quality`,
                 size: '1024x1024',
                 n: 1,
               }),
@@ -70,22 +68,23 @@ export async function POST(request: NextRequest) {
             '生成超时（120秒）'
           );
 
+          const responseText = await response.text();
+          console.log('[Image Gen] Response status:', response.status);
+          console.log('[Image Gen] Response:', responseText.substring(0, 500));
+
           if (!response.ok) {
-            const errorText = await response.text();
-            console.error('[Image Gen] API error:', response.status, errorText);
-            sendError(`API 错误 (${response.status}): ${errorText}`);
+            // 如果 V1 也失败，尝试其他方式
+            sendError(`API 错误 (${response.status}): ${responseText.substring(0, 200)}`);
             return;
           }
 
-          const data = await response.json();
-          console.log('[Image Gen] API response:', JSON.stringify(data).substring(0, 200));
+          const data = JSON.parse(responseText);
 
           // 解析响应
           let imageUrl = null;
           if (data.data && data.data[0]?.url) {
             imageUrl = data.data[0].url;
           } else if (data.data && data.data[0]?.b64_json) {
-            // 如果返回 base64，转为 data URL
             imageUrl = `data:image/png;base64,${data.data[0].b64_json}`;
           }
 
@@ -97,7 +96,7 @@ export async function POST(request: NextRequest) {
           console.log('[Image Gen] Success:', imageUrl.substring(0, 50));
           sendEvent({ type: 'progress', progress: 50, message: '图片生成完成' });
 
-          // 发送同一张图片作为所有视角
+          // 发送图片
           const views = ['main', 'front', 'side', 'back'];
           const viewNames = ['主视图', '正视图', '侧视图', '后视图'];
           
